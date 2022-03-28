@@ -1,15 +1,20 @@
-import smbus
+import io, fcntl
 
-bus = smbus.SMBus(4)
-
+dev = "/dev/i2c-4"
+I2C_SLAVE=0x0703 # from i2c-dev.h
 i2caddr = 0x3c
 
+bus = io.open(dev, "wb", buffering=0)
+fcntl.ioctl(bus, I2C_SLAVE, i2caddr)
+
 def ssd1306_cmd(cmd):
-    bus.write_i2c_block_data(i2caddr, 0, cmd)
+    bus.write(bytearray([0]+cmd))
 
 def ssd1306_data(data):
-    for i in range(0, len(data), 32):
-        bus.write_i2c_block_data(i2caddr, 0x40, data[i:i+32])
+    chunk = 256
+    for i in range(0, len(data), chunk):
+        bus.write(bytearray([0x40]+data[i:i+chunk]))
+
 
 # ssd1306 init
 ssd1306_cmd([0xae]) # Display off (reset)
