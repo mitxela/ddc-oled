@@ -57,18 +57,6 @@ ssd1306_cmd([0x22]) #Page address
 ssd1306_cmd([0x00]) #Start page 0
 ssd1306_cmd([0x07]) #End page 7
 
-'''
-import time
-
-while True:
-#    for i in range(32):
-    ssd1306_data([0xFF] * 1024)
-    time.sleep(1)    
-    
-    ssd1306_data([0x00] * 1024)
-    time.sleep(1)
-'''
-
 
 
 from Xlib import display, X
@@ -78,15 +66,26 @@ import numpy as np
 d = display.Display()
 root = d.screen().root
 
+from pyxcursor import Xcursor
+cursor = Xcursor()
+
+x = 1920
+y = 0
 w = 128
 h = 64
 
 while True:
-    raw = root.get_image(0,0,w,h, X.ZPixmap, 0xffffffff)
+    raw = root.get_image(x,y,w,h, X.ZPixmap, 0xffffffff)
+    simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX")
+
+    pointer = root.query_pointer()
+    px, py = pointer.root_x, pointer.root_y
+    if px > x and py < h:
+        iarray, xhot, yhot = cursor.getCursorImageArrayFast()
+        cimg = Image.fromarray(iarray)
+        simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
     
-    image = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX").convert("1")
-    
-    b = image.rotate(-90,expand=True).tobytes()
+    b = simg.convert("1").rotate(-90,expand=True).tobytes()
     r = np.frombuffer(b, np.uint8).reshape(w,h//8)
     r = np.transpose(r)
     r = np.flip(r, 0)

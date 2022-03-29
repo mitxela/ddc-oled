@@ -129,7 +129,7 @@ class Xcursor:
         imgarray = imgarray.reshape(height,width,8)[:, :, (0, 1, 2, 3)]
         del bytearr
 
-        return imgarray
+        return imgarray, data.xhot, data.yhot
 
     def saveImage(self,imgarray,text):
         from PIL import Image
