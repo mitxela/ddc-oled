@@ -74,18 +74,20 @@ y = 0
 w = 128
 h = 64
 
+cb = 10 # cursor boundary
+
 def getFrameAsByteList():
     raw = root.get_image(x,y,w,h, X.ZPixmap, 0xffffffff)
     simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX")
 
     pointer = root.query_pointer()
     px, py = pointer.root_x, pointer.root_y
-    if px > x and py < h:
+    if px >= x-cb and px<=w+cb and py >= y-cb and py < h+cb:
         iarray, xhot, yhot = cursor.getCursorImageArrayFast()
         cimg = Image.fromarray(iarray)
         simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
     
-    b = simg.convert("1",dither=0).rotate(-90,expand=True).tobytes()
+    b = simg.convert("1", dither=1).rotate(-90,expand=True).tobytes()
     r = np.frombuffer(b, np.uint8).reshape(w,h//8)
     r = np.transpose(r)
     r = np.flip(r, 0)
@@ -109,21 +111,24 @@ col_end = 127
 page_start = 0
 page_end = 7
 
+def setDrawAreaSafe(ca,cb,pa):
+    ssd1306_cmd([0x21, ca, cb, 0x22, pa, page_end])
+
 def setDrawArea(ca, cb, pa):
     global col_start, col_end, page_start, page_end
-    if (col_start!=ca or col_end!=cb) and (page_start!=pa):
-        ssd1306_cmd([0x21, ca, cb, 0x22, pa, page_end])
+    if (col_start!=ca or col_end!=cb) or (page_start!=pa):
+        #if page_start==pa:
+        #    ssd1306_cmd([0x21, ca, cb])
+        #el
+
+        if col_start==ca and col_end==cb:
+            ssd1306_cmd([0x22, pa, page_end])
+        else:
+        
+            ssd1306_cmd([0x21, ca, cb, 0x22, pa, page_end])
         col_start=ca
         col_end=cb
         page_start=pa
-    elif col_start!=ca or col_end!=cb:
-        ssd1306_cmd([0x21, ca, cb])
-        col_start=ca
-        col_end=cb
-    elif page_start!=pa:
-        ssd1306_cmd([0x22, pa, page_end])
-        page_start=pa
-      
 
 cost = 8
 
@@ -137,7 +142,9 @@ while True:
     if sum(changed)==0:
         time.sleep(0.016)
         continue
-    
+   
+    print("")
+ 
     transactions = []
     i=0
     while i<1024:
@@ -147,25 +154,26 @@ while True:
             while sum(changed[i:i+cost])!=0 and i<1024:
                 i+=1
             end=i-1
-            #print(start,end, start%128)
+            #print(start,end, start%128, end%128, start//128, end//128)
+            #print("glob", col_start, col_end, page_start, page_end)
             # at this point, we need to worry about if the transaction crosses a page boundary
             # if start_col != 0 and start_page != end_page, split transaction
             if start%128 != 0 and start//128 !=end//128:
                 split_point = ((start//128)+1)*128
                 transactions.append((start, split_point-1))
                 transactions.append((split_point, end))
-                #print("transaction split")
+                print("transaction split", split_point)
             else:
                 transactions.append((start, end))
         else:
             i+=1
     
     # optimise: transactions on adjacent pages with similar start and end col can be combined
-    
     for start, end in transactions:
         setDrawArea( start%128, end%128, start//128 )
-        ssd1306_data( newbuffer[start:end] )
-    #    print(start%128, end%128, start//128 )
+        ssd1306_data( newbuffer[start:end+1] )
+        print(start, end, start%128, end%128, start//128, end//128 )
+        #time.sleep(0.5)
 
     oldbuffer = newbuffer
 
