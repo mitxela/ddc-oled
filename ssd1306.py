@@ -1,6 +1,12 @@
-import io, fcntl
+
+# composite cursor after dithering
+# args to set device, contrast,  wrapper to launch?
+# clock script?
 
 dev = "/dev/i2c-3"
+contrast = 0x0f
+
+import io, fcntl
 I2C_SLAVE=0x0703 # from i2c-dev.h
 i2caddr = 0x3c
 
@@ -40,7 +46,7 @@ ssd1306_cmd([
 0x12, #     reset: 0x12
 
 0x81, # Set contrast
-0x0f, #     Contrast for internal vcc (reset: 0x7f)
+contrast, # 0xcf for internal vcc (reset: 0x7f)
 
 0xd9, # Set precharge period
 0xf1, #     for internal vcc (reset: 0x22)
@@ -75,7 +81,7 @@ def getFrameAsByteList():
 
     pointer = root.query_pointer()
     px, py = pointer.root_x, pointer.root_y
-    if px >= x-cb and px<=w+cb and py >= y-cb and py < h+cb:
+    if px >= x-cb and px<=x+w+cb and py >= y-cb and py < y+h+cb:
         iarray, xhot, yhot = cursor.getCursorImageArrayFast()
         cimg = Image.fromarray(iarray)
         simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
@@ -87,6 +93,9 @@ def getFrameAsByteList():
 
     return list(r.tobytes())
 
+# There is no way to simply set the pointer, we have to reconfigure the draw area
+# There is an eight? byte cost to setting the draw area, plus setting it back afterwards
+
 def setDrawArea(col,page):
     ssd1306_cmd([0x21, col, 127, 0x22, page, 7])
 
@@ -94,16 +103,9 @@ oldbuffer = getFrameAsByteList()
 setDrawArea(0,0)
 ssd1306_data(oldbuffer)
 
-#ssd1306_data([0xf0]*1024)
-
-# There is no way to simply set the pointer, we have to reconfigure the draw area
-# There is an eight? byte cost to setting the draw area, plus setting it back afterwards
-
-
-cost = 12
-
 import time
 
+cost = 8
 
 while True:
     newbuffer = getFrameAsByteList()
