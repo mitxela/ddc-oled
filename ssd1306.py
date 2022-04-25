@@ -50,14 +50,6 @@ ssd1306_cmd([0xa4]) # Resume entire display on (reset)
 ssd1306_cmd([0xa6]) # Normal display (reset)
 ssd1306_cmd([0xaf]) # Display on
 
-ssd1306_cmd([0x21]) #Column address
-ssd1306_cmd([0x00]) #Start column 0
-ssd1306_cmd([0x7F]) #End column 127
-ssd1306_cmd([0x22]) #Page address
-ssd1306_cmd([0x00]) #Start page 0
-ssd1306_cmd([0x07]) #End page 7
-
-
 
 from Xlib import display, X
 from PIL import Image
@@ -94,43 +86,20 @@ def getFrameAsByteList():
 
     return list(r.tobytes())
 
+def setDrawArea(col,page):
+    ssd1306_cmd([0x21, col, 127, 0x22, page, 7])
 
 oldbuffer = getFrameAsByteList()
+setDrawArea(0,0)
 ssd1306_data(oldbuffer)
 
 #ssd1306_data([0xf0]*1024)
 
 # There is no way to simply set the pointer, we have to reconfigure the draw area
-# There is a four? byte cost to setting the draw area, plus setting it back afterwards
-# Go through each byte
-#  If there are differences, we have to transmit
-#  If there aren't, we *might* transmit
+# There is an eight? byte cost to setting the draw area, plus setting it back afterwards
 
-col_start = 0
-col_end = 127
-page_start = 0
-page_end = 7
 
-def setDrawAreaSafe(ca,cb,pa):
-    ssd1306_cmd([0x21, ca, cb, 0x22, pa, page_end])
-
-def setDrawArea(ca, cb, pa):
-    global col_start, col_end, page_start, page_end
-    if (col_start!=ca or col_end!=cb) or (page_start!=pa):
-        #if page_start==pa:
-        #    ssd1306_cmd([0x21, ca, cb])
-        #el
-
-        if col_start==ca and col_end==cb:
-            ssd1306_cmd([0x22, pa, page_end])
-        else:
-        
-            ssd1306_cmd([0x21, ca, cb, 0x22, pa, page_end])
-        col_start=ca
-        col_end=cb
-        page_start=pa
-
-cost = 8
+cost = 12
 
 import time
 
@@ -138,13 +107,11 @@ import time
 while True:
     newbuffer = getFrameAsByteList()
     changed = list(map(lambda a,b: int(a!=b), newbuffer, oldbuffer))
-    
+
     if sum(changed)==0:
         time.sleep(0.016)
         continue
-   
-    print("")
- 
+
     transactions = []
     i=0
     while i<1024:
@@ -154,26 +121,22 @@ while True:
             while sum(changed[i:i+cost])!=0 and i<1024:
                 i+=1
             end=i-1
-            #print(start,end, start%128, end%128, start//128, end//128)
-            #print("glob", col_start, col_end, page_start, page_end)
             # at this point, we need to worry about if the transaction crosses a page boundary
             # if start_col != 0 and start_page != end_page, split transaction
-            if start%128 != 0 and start//128 !=end//128:
+            if start%128 != 0 and start//128 != end//128:
                 split_point = ((start//128)+1)*128
                 transactions.append((start, split_point-1))
                 transactions.append((split_point, end))
-                print("transaction split", split_point)
             else:
                 transactions.append((start, end))
         else:
             i+=1
     
-    # optimise: transactions on adjacent pages with similar start and end col can be combined
+    # future optimization: transactions on adjacent pages with similar start and end col can be combined
+
     for start, end in transactions:
-        setDrawAreaSafe( start%128, 127, start//128 )
+        setDrawArea( start%128, start//128 )
         ssd1306_data( newbuffer[start:end+1] )
-        print(start, end, start%128, 127, start//128, end//128 )
-        #time.sleep(0.5)
 
     oldbuffer = newbuffer
 
