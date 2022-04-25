@@ -87,7 +87,7 @@ def getFrameAsByteList():
         cimg = Image.fromarray(iarray)
         simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
     
-    b = simg.convert("1", dither=1).rotate(-90,expand=True).tobytes()
+    b = simg.convert("1", dither=0).rotate(-90,expand=True).tobytes()
     r = np.frombuffer(b, np.uint8).reshape(w,h//8)
     r = np.transpose(r)
     r = np.flip(r, 0)
@@ -170,9 +170,9 @@ while True:
     
     # optimise: transactions on adjacent pages with similar start and end col can be combined
     for start, end in transactions:
-        setDrawArea( start%128, end%128, start//128 )
+        setDrawAreaSafe( start%128, 127, start//128 )
         ssd1306_data( newbuffer[start:end+1] )
-        print(start, end, start%128, end%128, start//128, end//128 )
+        print(start, end, start%128, 127, start//128, end//128 )
         #time.sleep(0.5)
 
     oldbuffer = newbuffer
