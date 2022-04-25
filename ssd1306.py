@@ -1,6 +1,6 @@
 import io, fcntl
 
-dev = "/dev/i2c-4"
+dev = "/dev/i2c-3"
 I2C_SLAVE=0x0703 # from i2c-dev.h
 i2caddr = 0x3c
 
@@ -74,7 +74,7 @@ y = 0
 w = 128
 h = 64
 
-while True:
+def getFrameAsByteList():
     raw = root.get_image(x,y,w,h, X.ZPixmap, 0xffffffff)
     simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX")
 
@@ -85,10 +85,88 @@ while True:
         cimg = Image.fromarray(iarray)
         simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
     
-    b = simg.convert("1").rotate(-90,expand=True).tobytes()
+    b = simg.convert("1",dither=0).rotate(-90,expand=True).tobytes()
     r = np.frombuffer(b, np.uint8).reshape(w,h//8)
     r = np.transpose(r)
     r = np.flip(r, 0)
+
+    return list(r.tobytes())
+
+
+oldbuffer = getFrameAsByteList()
+ssd1306_data(oldbuffer)
+
+#ssd1306_data([0xf0]*1024)
+
+# There is no way to simply set the pointer, we have to reconfigure the draw area
+# There is a four? byte cost to setting the draw area, plus setting it back afterwards
+# Go through each byte
+#  If there are differences, we have to transmit
+#  If there aren't, we *might* transmit
+
+col_start = 0
+col_end = 127
+page_start = 0
+page_end = 7
+
+def setDrawArea(ca, cb, pa):
+    global col_start, col_end, page_start, page_end
+    if (col_start!=ca or col_end!=cb) and (page_start!=pa):
+        ssd1306_cmd([0x21, ca, cb, 0x22, pa, page_end])
+        col_start=ca
+        col_end=cb
+        page_start=pa
+    elif col_start!=ca or col_end!=cb:
+        ssd1306_cmd([0x21, ca, cb])
+        col_start=ca
+        col_end=cb
+    elif page_start!=pa:
+        ssd1306_cmd([0x22, pa, page_end])
+        page_start=pa
+      
+
+cost = 8
+
+import time
+
+
+while True:
+    newbuffer = getFrameAsByteList()
+    changed = list(map(lambda a,b: int(a!=b), newbuffer, oldbuffer))
     
-    ssd1306_data(list(r.tobytes()))
+    if sum(changed)==0:
+        time.sleep(0.016)
+        continue
+    
+    transactions = []
+    i=0
+    while i<1024:
+        if changed[i]:
+            # look for the next group of unchanged bytes larger than cost
+            start = i
+            while sum(changed[i:i+cost])!=0 and i<1024:
+                i+=1
+            end=i-1
+            #print(start,end, start%128)
+            # at this point, we need to worry about if the transaction crosses a page boundary
+            # if start_col != 0 and start_page != end_page, split transaction
+            if start%128 != 0 and start//128 !=end//128:
+                split_point = ((start//128)+1)*128
+                transactions.append((start, split_point-1))
+                transactions.append((split_point, end))
+                #print("transaction split")
+            else:
+                transactions.append((start, end))
+        else:
+            i+=1
+    
+    # optimise: transactions on adjacent pages with similar start and end col can be combined
+    
+    for start, end in transactions:
+        setDrawArea( start%128, end%128, start//128 )
+        ssd1306_data( newbuffer[start:end] )
+    #    print(start%128, end%128, start//128 )
+
+    oldbuffer = newbuffer
+
 
