@@ -1,12 +1,14 @@
+import sys, io, fcntl
 
-# args to set device, contrast,  wrapper to launch?
-# clock script?
+dev = sys.argv[1]
+dither = int(sys.argv[2])
+brightness = int(sys.argv[3])
+x = int(sys.argv[4])
+y = int(sys.argv[5])
+w = 128
+h = 64
 
-dev = "/dev/i2c-3"
-contrast = 0x0f
-dither=1
 
-import io, fcntl
 I2C_SLAVE=0x0703 # from i2c-dev.h
 i2caddr = 0x3c
 
@@ -46,7 +48,7 @@ ssd1306_cmd([
 0x12, #     reset: 0x12
 
 0x81, # Set contrast
-contrast, # 0xcf for internal vcc (reset: 0x7f)
+brightness, # 0xcf for internal vcc (reset: 0x7f)
 
 0xd9, # Set precharge period
 0xf1, #     for internal vcc (reset: 0x22)
@@ -67,11 +69,6 @@ root = d.screen().root
 
 from pyxcursor import Xcursor
 cursor = Xcursor()
-
-x = 1920
-y = 0
-w = 128
-h = 64
 
 cb = 10 # cursor boundary
 
