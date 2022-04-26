@@ -4,6 +4,7 @@
 
 dev = "/dev/i2c-3"
 contrast = 0x0f
+dither=1
 
 import io, fcntl
 I2C_SLAVE=0x0703 # from i2c-dev.h
@@ -76,14 +77,14 @@ cb = 10 # cursor boundary
 
 def getFrameAsByteList():
     raw = root.get_image(x,y,w,h, X.ZPixmap, 0xffffffff)
-    simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX").convert("1")
+    simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX").convert("1", dither=dither)
 
     pointer = root.query_pointer()
     px, py = pointer.root_x, pointer.root_y
     if px >= x-cb and px<=x+w+cb and py >= y-cb and py < y+h+cb:
         iarray, xhot, yhot = cursor.getCursorImageArrayFast()
         cimg = Image.fromarray(iarray)
-        simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
+        simg.paste(cimg.convert("1",dither=dither), (px-x-xhot,py-y-yhot), cimg) 
     
     b = simg.rotate(-90,expand=True).tobytes()
     r = np.frombuffer(b, np.uint8).reshape(w,h//8)
