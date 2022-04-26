@@ -1,5 +1,4 @@
 
-# composite cursor after dithering
 # args to set device, contrast,  wrapper to launch?
 # clock script?
 
@@ -77,7 +76,7 @@ cb = 10 # cursor boundary
 
 def getFrameAsByteList():
     raw = root.get_image(x,y,w,h, X.ZPixmap, 0xffffffff)
-    simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX")
+    simg = Image.frombytes("RGB", (w, h), raw.data, "raw", "BGRX").convert("1")
 
     pointer = root.query_pointer()
     px, py = pointer.root_x, pointer.root_y
@@ -86,7 +85,7 @@ def getFrameAsByteList():
         cimg = Image.fromarray(iarray)
         simg.paste(cimg, (px-x-xhot,py-y-yhot), cimg) 
     
-    b = simg.convert("1", dither=0).rotate(-90,expand=True).tobytes()
+    b = simg.rotate(-90,expand=True).tobytes()
     r = np.frombuffer(b, np.uint8).reshape(w,h//8)
     r = np.transpose(r)
     r = np.flip(r, 0)
